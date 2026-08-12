@@ -5,9 +5,11 @@ scrapers without any manual file management. Front-end addons that already
 support "CocoScrapers Module" as an external provider (Umbrella, FenLightAM,
 etc.) then pick it up automatically, with no extra integration on their side.
 
-CocoScrapers doesn't officially document this folder layout, so this module
-discovers it at runtime instead of hardcoding folder names, and reports back
-exactly what it did (or couldn't do) rather than failing silently.
+The target folder was confirmed by inspecting a real CocoScrapers install
+(lib/cocoscrapers/sources_cocoscrapers/torrents/, alongside scrapers like
+bitlord.py and comet.py) - CocoScrapers doesn't officially document this
+layout, so if it's ever wrong again this fails loud (logged) rather than
+silently.
 """
 import os
 
@@ -20,8 +22,7 @@ COCOSCRAPERS_ADDON_ID = 'script.module.cocoscrapers'
 ADAPTER_RELATIVE_PATH = ('lib', 'aiostreams', 'adapters', 'cocoscrapers.py')
 LINKED_FILENAME = 'aiostreams.py'
 
-MOVIE_FOLDER_CANDIDATES = ['sources_mv']
-EPISODE_FOLDER_CANDIDATES = ['sources_ep', 'sources_tv', 'sources_sh', 'sources_episodes', 'sources_tvshows']
+SCRAPERS_RELATIVE_PATH = ('lib', 'cocoscrapers', 'sources_cocoscrapers', 'torrents')
 
 
 def _own_adapter_path():
@@ -30,29 +31,17 @@ def _own_adapter_path():
     return os.path.join(own_path, *ADAPTER_RELATIVE_PATH)
 
 
-def _find_existing_folder(base_dir, candidates):
-    dirs, _files = xbmcvfs.listdir(base_dir)
-    for candidate in candidates:
-        if candidate in dirs:
-            return candidate
-    return None
-
-
 def link_to_cocoscrapers():
     """
     Returns a dict describing what happened:
     {
         'cocoscrapers_installed': bool,
-        'linked_movies': bool,
-        'linked_episodes': bool,
-        'episode_folder_used': str or None,
+        'linked': bool,
     }
     """
     result = {
         'cocoscrapers_installed': False,
-        'linked_movies': False,
-        'linked_episodes': False,
-        'episode_folder_used': None,
+        'linked': False,
     }
 
     coco_addon_path = xbmcvfs.translatePath(f"special://home/addons/{COCOSCRAPERS_ADDON_ID}/")
@@ -61,26 +50,16 @@ def link_to_cocoscrapers():
 
     result['cocoscrapers_installed'] = True
 
-    scrapers_base = os.path.join(coco_addon_path, 'lib', 'cocoscrapers')
-    if not xbmcvfs.exists(scrapers_base + os.sep):
+    target_dir = os.path.join(coco_addon_path, *SCRAPERS_RELATIVE_PATH)
+    if not xbmcvfs.exists(target_dir + os.sep):
         xbmc.log(
             f"[script.aiostreamscraper] CocoScrapers is installed but "
-            f"{scrapers_base} was not found; its internal layout may have changed.",
+            f"{target_dir} was not found; its internal layout may have changed.",
             xbmc.LOGWARNING,
         )
         return result
 
-    source_file = _own_adapter_path()
-
-    movie_folder = _find_existing_folder(scrapers_base, MOVIE_FOLDER_CANDIDATES)
-    if movie_folder:
-        dest = os.path.join(scrapers_base, movie_folder, LINKED_FILENAME)
-        result['linked_movies'] = xbmcvfs.copy(source_file, dest)
-
-    episode_folder = _find_existing_folder(scrapers_base, EPISODE_FOLDER_CANDIDATES)
-    if episode_folder:
-        dest = os.path.join(scrapers_base, episode_folder, LINKED_FILENAME)
-        result['linked_episodes'] = xbmcvfs.copy(source_file, dest)
-        result['episode_folder_used'] = episode_folder if result['linked_episodes'] else None
+    dest = os.path.join(target_dir, LINKED_FILENAME)
+    result['linked'] = xbmcvfs.copy(_own_adapter_path(), dest)
 
     return result

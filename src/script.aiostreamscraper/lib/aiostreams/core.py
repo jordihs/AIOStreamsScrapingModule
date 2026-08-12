@@ -62,7 +62,13 @@ class AIOStreamsEngine:
         if not raw_title:
             raw_title = stream.get('name', 'AIOStreams Release')
 
-        url = stream.get('url') or stream.get('infoHash')
+        is_direct = bool(stream.get('url'))
+        url = stream.get('url')
+        if not url:
+            info_hash = stream.get('infoHash')
+            if info_hash:
+                url = f"magnet:?xt=urn:btih:{info_hash}"
+
         if not url:
             return None
 
@@ -72,6 +78,7 @@ class AIOStreamsEngine:
             'size_bytes': size_bytes,
             'size_formatted': f"{size_gb} GB" if size_gb else "N/A",
             'url': url,
+            'is_direct': is_direct,
             'source_name': stream.get('name', 'AIOStreams')
         }
 

@@ -75,8 +75,8 @@ def play_stream(stream, dialog):
     if not url.startswith(('http://', 'https://')):
         dialog.ok(
             "Playback Unavailable",
-            "This result is a torrent hash with no direct URL, so it can't be "
-            "played without a debrid service or torrent resolver."
+            "This result is a magnet link with no resolved direct URL, so it can't "
+            "be played here without a debrid service or torrent resolver."
         )
         return
 
@@ -92,15 +92,8 @@ def run_link_cocoscrapers():
         dialog.ok("CocoScrapers Link", "CocoScrapers is not installed. Install it first, then try again.")
         return
 
-    lines = [
-        f"Movies: {'linked' if result['linked_movies'] else 'not linked (folder not found)'}",
-    ]
-    if result['linked_episodes']:
-        lines.append(f"Episodes: linked (via {result['episode_folder_used']})")
-    else:
-        lines.append("Episodes: not linked (folder not found)")
-
-    dialog.ok("CocoScrapers Link", "\n".join(lines))
+    msg = "Linked successfully." if result['linked'] else "Could not link: expected scraper folder not found."
+    dialog.ok("CocoScrapers Link", msg)
 
 
 if __name__ == '__main__':
