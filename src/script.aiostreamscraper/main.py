@@ -14,7 +14,28 @@ if lib_path not in sys.path:
     sys.path.append(lib_path)
 
 from aiostreams.config import get_engine
-from aiostreams.cocoscrapers_link import link_to_cocoscrapers
+from aiostreams.cocoscrapers_link import link_to_cocoscrapers, disable_other_cocoscrapers_providers
+
+
+def sync_manifest_url_display():
+    current = addon.getSetting('manifest_url').strip()
+    addon.setSetting('manifest_url_display', current if current else 'Not set')
+
+
+def run_set_manifest_url():
+    current = addon.getSetting('manifest_url').strip()
+
+    new_value = xbmcgui.Dialog().input(
+        "Enter the full AIOStreams Manifest URL:",
+        defaultt=current
+    )
+
+    if not new_value:
+        return
+
+    new_value = new_value.strip()
+    addon.setSetting('manifest_url', new_value)
+    addon.setSetting('manifest_url_display', new_value if new_value else 'Not set')
 
 
 def run_test_search():
@@ -92,8 +113,44 @@ def run_link_cocoscrapers():
         dialog.ok("CocoScrapers Link", "CocoScrapers is not installed. Install it first, then try again.")
         return
 
-    msg = "Linked successfully." if result['linked'] else "Could not link: expected scraper folder not found."
+    if result['linked'] and result['enabled']:
+        msg = "Linked and enabled in CocoScrapers successfully."
+    elif result['linked']:
+        msg = "Linked, but could not enable it in CocoScrapers' settings."
+    else:
+        msg = "Could not link: expected scraper folder not found."
     dialog.ok("CocoScrapers Link", msg)
+
+
+def run_cocoscrapers_only():
+    dialog = xbmcgui.Dialog()
+
+    confirmed = dialog.yesno(
+        "Make AIOStreams the Only CocoScrapers Source",
+        "This will disable every other CocoScrapers torrent provider by "
+        "overwriting your current enable/disable choices in CocoScrapers' "
+        "own settings.\n\n"
+        "This cannot be undone - there is no automatic way to restore your "
+        "previous provider selection afterwards.\n\n"
+        "Continue?",
+        yeslabel="Disable Others",
+        nolabel="Cancel"
+    )
+
+    if not confirmed:
+        return
+
+    link_result = link_to_cocoscrapers()
+    if not link_result['cocoscrapers_installed']:
+        dialog.ok("CocoScrapers", "CocoScrapers is not installed.")
+        return
+
+    disable_result = disable_other_cocoscrapers_providers()
+    dialog.ok(
+        "CocoScrapers",
+        f"Disabled {len(disable_result['disabled_providers'])} other provider(s). "
+        f"AIOStreams is now the only enabled source."
+    )
 
 
 if __name__ == '__main__':
@@ -101,5 +158,10 @@ if __name__ == '__main__':
         run_test_search()
     elif len(sys.argv) > 1 and sys.argv[1] == 'link_cocoscrapers':
         run_link_cocoscrapers()
+    elif len(sys.argv) > 1 and sys.argv[1] == 'set_manifest_url':
+        run_set_manifest_url()
+    elif len(sys.argv) > 1 and sys.argv[1] == 'cocoscrapers_only':
+        run_cocoscrapers_only()
     else:
+        sync_manifest_url_display()
         addon.openSettings()

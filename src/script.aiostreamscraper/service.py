@@ -18,6 +18,7 @@ if __name__ == '__main__':
         result = link_to_cocoscrapers()
         if result['cocoscrapers_installed']:
             xbmc.log(
-                f"[script.aiostreamscraper] Startup CocoScrapers link: linked={result['linked']}",
+                f"[script.aiostreamscraper] Startup CocoScrapers link: "
+                f"linked={result['linked']} enabled={result['enabled']}",
                 xbmc.LOGINFO,
             )

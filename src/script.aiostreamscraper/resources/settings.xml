@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <category label="AIOStreams Configuration">
-        <setting id="manifest_url" type="text" label="Full AIOStreams Manifest URL" default="" />
+        <setting id="manifest_url" type="text" default="" visible="false" />
+        <setting id="manifest_url_button" type="action" label="Set AIOStreams Manifest URL" action="RunScript(script.aiostreamscraper, set_manifest_url)" />
+        <setting id="manifest_url_display" type="text" label="Current Manifest URL" default="Not set" enable="false" />
         <setting id="timeout" type="number" label="Search Timeout (seconds)" default="10" />
         <setting id="test_button" type="action" label="Run Test Search" action="RunScript(script.aiostreamscraper, test)" />
     </category>
     <category label="CocoScrapers Integration">
         <setting id="link_cocoscrapers_button" type="action" label="Link to CocoScrapers Now" action="RunScript(script.aiostreamscraper, link_cocoscrapers)" />
         <setting id="link_cocoscrapers_service" type="bool" label="Automatically re-link on Kodi startup" default="true" />
+        <setting id="cocoscrapers_only_button" type="action" label="Make AIOStreams the Only CocoScrapers Source (destructive)" action="RunScript(script.aiostreamscraper, cocoscrapers_only)" />
     </category>
 </settings>
