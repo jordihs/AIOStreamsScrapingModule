@@ -1,42 +1,55 @@
 import json
-import re
 from urllib.parse import unquote, urlparse
 import urllib.request
 import urllib.error
+
+import xbmc
+
+MANIFEST_SUFFIX = '/manifest.json'
+
 
 class AIOStreamsEngine:
     def __init__(self, manifest_url, timeout=10):
         self.manifest_url = manifest_url.strip() if manifest_url else ""
         self.timeout = timeout
-        self.base_url = self.manifest_url.replace('/manifest.json', '') if self.manifest_url else ""
+        self.base_url = (
+            self.manifest_url[:-len(MANIFEST_SUFFIX)]
+            if self.manifest_url.endswith(MANIFEST_SUFFIX)
+            else self.manifest_url
+        )
 
     def get_streams(self, imdb_id, media_type="movie", season=None, episode=None):
         if not self.base_url or not imdb_id:
             return []
 
-        query_id = f"{imdb_id}:{season}:{episode}" if media_type == "series" and season and episode else imdb_id
-        endpoint = f"{self.base_url}/stream/{media_type}/{query_id}.json"
-
         try:
-            req = urllib.request.Request(endpoint, headers={'User-Agent': 'Kodi/AIOStreamsScraper'})
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                if response.status == 200:
-                    body = response.read().decode('utf-8')
-                    data = json.loads(body)
-                    raw_streams = data.get('streams', [])
-                    
-                    parsed_streams = []
-                    for stream in raw_streams:
-                        parsed = self._normalize_stream(stream)
-                        if parsed:
-                            parsed_streams.append(parsed)
-                            
-                    return parsed_streams
-        except Exception:
+            data = self.fetch_raw(imdb_id, media_type=media_type, season=season, episode=episode)
+        except Exception as exc:
+            xbmc.log(f"[script.aiostreamscraper] Failed to fetch streams: {exc}", xbmc.LOGERROR)
             return []
-        return []
 
-    def _normalize_stream(self, stream):
+        raw_streams = data.get('streams', [])
+        parsed_streams = []
+        for stream in raw_streams:
+            parsed = self.normalize_stream(stream)
+            if parsed:
+                parsed_streams.append(parsed)
+
+        return parsed_streams
+
+    def fetch_raw(self, imdb_id, media_type="movie", season=None, episode=None):
+        """Fetch and JSON-decode the raw AIOStreams response. Raises on network/HTTP errors."""
+        endpoint = self._build_endpoint(imdb_id, media_type, season, episode)
+        req = urllib.request.Request(endpoint, headers={'User-Agent': 'Kodi/AIOStreamsScraper'})
+        with urllib.request.urlopen(req, timeout=self.timeout) as response:
+            body = response.read().decode('utf-8')
+            return json.loads(body)
+
+    def _build_endpoint(self, imdb_id, media_type, season, episode):
+        query_id = f"{imdb_id}:{season}:{episode}" if media_type == "series" and season and episode else imdb_id
+        return f"{self.base_url}/stream/{media_type}/{query_id}.json"
+
+    def normalize_stream(self, stream):
         behavior = stream.get('behaviorHints', {})
         size_bytes = behavior.get('videoSize') or behavior.get('folderSize') or 0
         size_gb = round(size_bytes / (1024 ** 3), 2) if size_bytes else 0
@@ -45,7 +58,7 @@ class AIOStreamsEngine:
         if not raw_title and stream.get('url'):
             parsed_url = urlparse(stream['url'])
             raw_title = unquote(parsed_url.path.split('/')[-1])
-            
+
         if not raw_title:
             raw_title = stream.get('name', 'AIOStreams Release')
 

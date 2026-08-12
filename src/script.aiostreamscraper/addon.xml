@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.aiostreamscraper" name="AIOStreams Scraper" version="1.0.6" provider-name="Jordihs">
+<addon id="script.aiostreamscraper" name="AIOStreams Scraper" version="0.1.0~beta1" provider-name="Jordihs">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
     </requires>
@@ -7,8 +7,8 @@
         <provides>executable</provides>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary lang="es_ES">AIOStreams Scraper</summary>
-        <description lang="es_ES">Conector agnóstico para AIOStreams</description>
+        <summary lang="en_GB">AIOStreams Scraper</summary>
+        <description lang="en_GB">Provider-agnostic connector for AIOStreams</description>
         <platform>all</platform>
         <assets>
             <icon>icon.png</icon>
