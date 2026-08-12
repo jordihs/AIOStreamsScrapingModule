@@ -14,6 +14,7 @@ if lib_path not in sys.path:
     sys.path.append(lib_path)
 
 from aiostreams.config import get_engine
+from aiostreams.cocoscrapers_link import link_to_cocoscrapers
 
 
 def run_test_search():
@@ -83,8 +84,29 @@ def play_stream(stream, dialog):
     xbmc.Player().play(url, list_item)
 
 
+def run_link_cocoscrapers():
+    dialog = xbmcgui.Dialog()
+    result = link_to_cocoscrapers()
+
+    if not result['cocoscrapers_installed']:
+        dialog.ok("CocoScrapers Link", "CocoScrapers is not installed. Install it first, then try again.")
+        return
+
+    lines = [
+        f"Movies: {'linked' if result['linked_movies'] else 'not linked (folder not found)'}",
+    ]
+    if result['linked_episodes']:
+        lines.append(f"Episodes: linked (via {result['episode_folder_used']})")
+    else:
+        lines.append("Episodes: not linked (folder not found)")
+
+    dialog.ok("CocoScrapers Link", "\n".join(lines))
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
         run_test_search()
+    elif len(sys.argv) > 1 and sys.argv[1] == 'link_cocoscrapers':
+        run_link_cocoscrapers()
     else:
         addon.openSettings()

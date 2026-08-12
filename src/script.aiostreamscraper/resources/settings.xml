@@ -5,4 +5,8 @@
         <setting id="timeout" type="number" label="Search Timeout (seconds)" default="10" />
         <setting id="test_button" type="action" label="Run Test Search" action="RunScript(script.aiostreamscraper, test)" />
     </category>
+    <category label="CocoScrapers Integration">
+        <setting id="link_cocoscrapers_button" type="action" label="Link to CocoScrapers Now" action="RunScript(script.aiostreamscraper, link_cocoscrapers)" />
+        <setting id="link_cocoscrapers_service" type="bool" label="Automatically re-link on Kodi startup" default="true" />
+    </category>
 </settings>
