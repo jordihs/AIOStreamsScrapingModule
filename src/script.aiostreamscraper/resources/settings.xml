@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="AIOStreams Configuration">
+        <setting id="manifest_url" type="text" label="Full AIOStreams Manifest URL" default="" />
+        <setting id="timeout" type="number" label="Search Timeout (seconds)" default="10" />
+        <setting id="test_button" type="action" label="Run Test Search" action="RunScript(script.aiostreamscraper, test)" />
+    </category>
+</settings>
