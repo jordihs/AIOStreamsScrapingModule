@@ -15,6 +15,22 @@ if lib_path not in sys.path:
 
 from aiostreams.config import get_engine
 from aiostreams.cocoscrapers_link import link_to_cocoscrapers, disable_other_cocoscrapers_providers
+from aiostreams.manifest_store import get_manifest_url, set_manifest_url
+
+
+def run_set_manifest_url():
+    dialog = xbmcgui.Dialog()
+    current = get_manifest_url()
+
+    user_input = dialog.input("Enter AIOStreams Manifest URL:", defaultt=current)
+    if not user_input:
+        # xbmcgui.Dialog().input() returns '' both on Cancel and on OK with
+        # an empty field - either way, leave the stored value untouched
+        # rather than risk silently wiping out a working URL.
+        return
+
+    set_manifest_url(user_input)
+    dialog.ok("Manifest URL", "Manifest URL saved.")
 
 
 def run_test_search():
@@ -135,14 +151,21 @@ def run_cocoscrapers_only():
 def run_main_menu():
     # Redundant fallback for running the addon directly (e.g. from the addon
     # browser) - every option here is also reachable from the settings
-    # dialog itself via type="action" settings with option="close", which
-    # closes (and flushes) the dialog before RunScript executes, so there's
-    # no risk of reading an unflushed edit to another field.
+    # dialog itself via type="action" settings. None of those close the
+    # settings dialog (deliberately, per user request) - only `timeout` is a
+    # native Kodi-persisted field left exposed there, and Kodi doesn't flush
+    # a field's edit to disk until you leave the dialog, so editing timeout
+    # and immediately running an action from the same still-open dialog can
+    # read the previous value once. Not worth engineering around: it's a
+    # one-shot staleness on a rarely-changed numeric field, not the
+    # data-loss-causing race the old manifest_url text field had (see
+    # aiostreams.manifest_store).
     options = [
         "Open Settings",
         "Run Test Search",
         "Link to CocoScrapers Now",
         "Make AIOStreams the Only CocoScrapers Source",
+        "Set Manifest URL",
     ]
     choice = xbmcgui.Dialog().select("AIOStreams Scraper", options)
 
@@ -154,6 +177,8 @@ def run_main_menu():
         run_link_cocoscrapers()
     elif choice == 3:
         run_cocoscrapers_only()
+    elif choice == 4:
+        run_set_manifest_url()
 
 
 if __name__ == '__main__':
@@ -163,5 +188,7 @@ if __name__ == '__main__':
         run_link_cocoscrapers()
     elif len(sys.argv) > 1 and sys.argv[1] == 'cocoscrapers_only':
         run_cocoscrapers_only()
+    elif len(sys.argv) > 1 and sys.argv[1] == 'set_manifest_url':
+        run_set_manifest_url()
     else:
         run_main_menu()

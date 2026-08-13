@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <category label="Manifest URL">
-        <setting id="manifest_url" type="text" label="AIOStreams Manifest URL" default="" />
+        <!-- Legacy field, kept declared (but hidden) only so a pre-existing
+             value can be migrated once by aiostreams.manifest_store - see
+             that module. No longer editable here: a single-line settings
+             row can't be navigated with a controller once the URL is long
+             (D-pad left moves the in-row caret instead of leaving the
+             field), so the URL is now set exclusively via the popup button
+             below and stored outside Kodi's settings persistence entirely. -->
+        <setting id="manifest_url" type="text" label="AIOStreams Manifest URL" default="" visible="false" />
+        <setting id="manifest_url_action" type="action" label="Set Manifest URL" action="RunScript(script.aiostreamscraper,set_manifest_url)" />
     </category>
     <category label="AIOStreams Settings">
         <setting id="timeout" type="number" label="Search Timeout (seconds)" default="10" />
-        <setting id="test_search_action" type="action" label="Run Test Search" action="RunScript(script.aiostreamscraper,test)" option="close" />
+        <setting id="test_search_action" type="action" label="Run Test Search" action="RunScript(script.aiostreamscraper,test)" />
         <setting id="link_cocoscrapers_service" type="bool" label="Automatically re-link on Kodi startup" default="true" />
-        <setting id="link_cocoscrapers_action" type="action" label="Link to CocoScrapers Now" action="RunScript(script.aiostreamscraper,link_cocoscrapers)" option="close" />
-        <setting id="cocoscrapers_only_action" type="action" label="Make AIOStreams the Only CocoScrapers Source" action="RunScript(script.aiostreamscraper,cocoscrapers_only)" option="close" />
+        <setting id="link_cocoscrapers_action" type="action" label="Link to CocoScrapers Now" action="RunScript(script.aiostreamscraper,link_cocoscrapers)" />
+        <setting id="cocoscrapers_only_action" type="action" label="Make AIOStreams the Only CocoScrapers Source" action="RunScript(script.aiostreamscraper,cocoscrapers_only)" />
     </category>
 </settings>

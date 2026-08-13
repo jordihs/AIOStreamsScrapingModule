@@ -4,13 +4,14 @@ import xbmc
 import xbmcaddon
 
 from .core import AIOStreamsEngine
+from .manifest_store import get_manifest_url
 
 ADDON_ID = 'script.aiostreamscraper'
 
 
 def get_engine():
     addon = xbmcaddon.Addon(ADDON_ID)
-    manifest_url = addon.getSetting('manifest_url').strip()
+    manifest_url = get_manifest_url()
     timeout_val = addon.getSetting('timeout')
     timeout = int(timeout_val) if timeout_val else 10
 

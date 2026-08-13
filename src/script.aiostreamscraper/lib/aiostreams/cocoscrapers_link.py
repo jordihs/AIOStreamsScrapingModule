@@ -28,6 +28,7 @@ of this is officially documented:
   This also has the side benefit of making it a real, visible, toggleable
   entry in CocoScrapers' own settings screen, same as its own providers.
 """
+import json
 import os
 import xml.etree.ElementTree as ET
 
@@ -96,12 +97,13 @@ def _provider_module_names(target_dir):
 def _declare_provider_label_string(coco_addon_path):
     """
     Adds a strings.po entry for LINKED_LABEL_STRING_ID so the setting has a
-    visible label in CocoScrapers' settings screen. Returns True if the
-    string is present after this call (already there, or just added).
+    visible label in CocoScrapers' settings screen. Returns (ok, changed):
+    ok is True if the string is present after this call (already there, or
+    just added); changed is True only if this call actually wrote to disk.
     """
     po_path = os.path.join(coco_addon_path, *LANGUAGE_STRINGS_RELATIVE_PATH)
     if not xbmcvfs.exists(po_path):
-        return False
+        return False, False
 
     marker = f'msgctxt "#{LINKED_LABEL_STRING_ID}"'
 
@@ -110,10 +112,10 @@ def _declare_provider_label_string(coco_addon_path):
             text = f.read()
     except Exception as exc:
         xbmc.log(f"[script.aiostreamscraper] Could not read {po_path}: {exc}", xbmc.LOGWARNING)
-        return False
+        return False, False
 
     if marker in text:
-        return True
+        return True, False
 
     addition = f'\n{marker}\nmsgid "{LINKED_LABEL_TEXT}"\nmsgstr ""\n'
 
@@ -122,9 +124,9 @@ def _declare_provider_label_string(coco_addon_path):
             f.write(addition)
     except Exception as exc:
         xbmc.log(f"[script.aiostreamscraper] Could not write {po_path}: {exc}", xbmc.LOGWARNING)
-        return False
+        return False, False
 
-    return True
+    return True, True
 
 
 def _declare_provider_setting(coco_addon_path):
@@ -132,30 +134,35 @@ def _declare_provider_setting(coco_addon_path):
     Ensures LINKED_SETTING_ID exists as a real, declared setting (defaulted
     to enabled) in CocoScrapers' own resources/settings.xml. See module
     docstring for why this is required instead of just calling setSetting().
-    Returns True if the setting is present after this call (already there,
-    or just added), False if settings.xml couldn't be found/parsed/patched.
+    Returns (ok, changed): ok is True if the setting is present after this
+    call (already there, or just added), False if settings.xml couldn't be
+    found/parsed/patched; changed is True if this call (or the label-string
+    call it makes) wrote anything to disk.
     """
     settings_xml_path = os.path.join(coco_addon_path, *SETTINGS_XML_RELATIVE_PATH)
     if not xbmcvfs.exists(settings_xml_path):
-        return False
+        return False, False
 
     try:
         tree = ET.parse(settings_xml_path)
     except Exception as exc:
         xbmc.log(f"[script.aiostreamscraper] Could not parse {settings_xml_path}: {exc}", xbmc.LOGWARNING)
-        return False
+        return False, False
 
     root = tree.getroot()
-    label = LINKED_LABEL_STRING_ID if _declare_provider_label_string(coco_addon_path) else LINKED_LABEL_TEXT
+    label_ok, label_changed = _declare_provider_label_string(coco_addon_path)
+    label = LINKED_LABEL_STRING_ID if label_ok else LINKED_LABEL_TEXT
+    changed = label_changed
 
     existing = root.find(f".//setting[@id='{LINKED_SETTING_ID}']")
     if existing is not None:
         if existing.get('label') == label:
-            return True
+            return True, changed
         # Self-heals an entry created by an older version of this function
         # (e.g. one that used a literal label before it was known that
         # CocoScrapers' settings GUI only renders numeric-id labels).
         existing.set('label', label)
+        changed = True
     else:
         target_group = None
         for group in root.iter('group'):
@@ -169,7 +176,7 @@ def _declare_provider_setting(coco_addon_path):
                 f"in {settings_xml_path}; its schema may have changed.",
                 xbmc.LOGWARNING,
             )
-            return False
+            return False, changed
 
         new_setting = ET.SubElement(target_group, 'setting')
         new_setting.set('id', LINKED_SETTING_ID)
@@ -179,14 +186,47 @@ def _declare_provider_setting(coco_addon_path):
         ET.SubElement(new_setting, 'level').text = '0'
         ET.SubElement(new_setting, 'default').text = 'true'
         ET.SubElement(new_setting, 'control').set('type', 'toggle')
+        changed = True
 
     try:
         tree.write(settings_xml_path, encoding='UTF-8', xml_declaration=True)
     except Exception as exc:
         xbmc.log(f"[script.aiostreamscraper] Could not write {settings_xml_path}: {exc}", xbmc.LOGWARNING)
-        return False
+        return False, changed
 
-    return True
+    return True, changed
+
+
+def _reload_cocoscrapers_addon():
+    """
+    Forces Kodi to drop and re-parse its cached copy of CocoScrapers'
+    settings.xml/strings.po, by disabling then re-enabling the addon via
+    JSON-RPC. Best-effort fix for an unconfirmed bug: our provider's toggle
+    has repeatedly shown up in CocoScrapers' settings screen with no visible
+    label (blank text next to the toggle) even though the underlying
+    settings.xml/strings.po patch was independently confirmed correct on
+    disk - never root-caused further than "Kodi is caching the parsed
+    settings/strings somewhere a plain file edit doesn't invalidate".
+    SetAddonEnabled forces the same reload path a real Kodi restart would
+    trigger for this one addon, without restarting all of Kodi. Only called
+    when _declare_provider_setting actually changed something on disk, so
+    this doesn't run on every ordinary startup once things are stable.
+    """
+    for enabled in (False, True):
+        try:
+            xbmc.executeJSONRPC(json.dumps({
+                'jsonrpc': '2.0',
+                'id': 1,
+                'method': 'Addons.SetAddonEnabled',
+                'params': {'addonid': COCOSCRAPERS_ADDON_ID, 'enabled': enabled},
+            }))
+        except Exception as exc:
+            xbmc.log(
+                f"[script.aiostreamscraper] _reload_cocoscrapers_addon: "
+                f"SetAddonEnabled({enabled}) failed: {exc}",
+                xbmc.LOGWARNING,
+            )
+            return
 
 
 def link_to_cocoscrapers():
@@ -218,7 +258,9 @@ def link_to_cocoscrapers():
     result['linked'] = xbmcvfs.copy(_own_adapter_path(), dest)
 
     if result['linked']:
-        result['enabled'] = _declare_provider_setting(coco_addon_path)
+        result['enabled'], changed = _declare_provider_setting(coco_addon_path)
+        if changed:
+            _reload_cocoscrapers_addon()
 
     return result
 

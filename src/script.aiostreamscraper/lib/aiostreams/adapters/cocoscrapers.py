@@ -44,7 +44,20 @@ import xbmcvfs
 
 LOG_PREFIX = '[aiostreamsscraper_jordihs]'
 _OWN_ADDON_ID = 'script.aiostreamscraper'
-_PROVIDER_NAME = 'aiostreamsscraper_jordihs'
+
+# This is only the display/dedupe value Umbrella puts in each result's
+# 'provider' key (shown uppercased in the source picker, e.g.
+# `items[i]['provider'].upper()` in sources.py) - deliberately NOT the same
+# string as cocoscrapers_link.LINKED_MODULE_NAME, which is a completely
+# separate identifier (the .py filename copied into CocoScrapers + the
+# provider.<name> settings id CocoScrapers uses for enablement) that must
+# stay unchanged for the link mechanism to keep working. Kept short (Kodi's
+# results list has little horizontal room) and lowercase, matching the
+# convention of Umbrella's own special-cased provider strings ('easynews',
+# 'rd_cloud', etc.) - must NOT be one of Umbrella's 9 hardcoded built-in
+# cloud-provider names or 'aios' would trigger their cloud-specific resolve
+# logic instead of the generic pass-through our entries rely on.
+_PROVIDER_NAME = 'aios'
 
 try:
     _own_addon = xbmcaddon.Addon(_OWN_ADDON_ID)
