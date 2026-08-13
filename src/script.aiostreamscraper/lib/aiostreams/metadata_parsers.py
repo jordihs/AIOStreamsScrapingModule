@@ -59,6 +59,138 @@ def strip_emojis(text):
     return re.sub(r'\s{2,}', ' ', _EMOJI_RE.sub('', text)).strip()
 
 
+def _contains_token(haystack, token):
+    """token found in haystack, bounded by non-alphanumerics (or string
+    edges) on both sides - a plain `in` check would let 'DD' match inside
+    'ADDED', or 'AVC' inside some unrelated word. haystack is assumed
+    already uppercased; token may itself contain non-alphanumeric
+    characters (e.g. 'DTS-HD MA'), which already act as their own
+    boundaries on that side."""
+    pattern = r'(?<![A-Z0-9])' + re.escape(token) + r'(?![A-Z0-9])'
+    return re.search(pattern, haystack) is not None
+
+
+def build_umbrella_icon_tags(raw_title, fields=None):
+    """
+    Umbrella's source_results.xml skin drives a row of format icons (Dolby
+    Vision, HDR, HEVC, Atmos, DTS-HD MA, channel count, ...) purely from
+    ListItem.Property(umbrella.extra_info) - confirmed by reading
+    resources/lib/windows/source_results.py, which sets that property
+    verbatim from our own 'info' field (`extra_info = item.get('info')`,
+    no .upper() or other transform, unlike 'quality'/'provider'/'source'
+    which DO get uppercased there). The skin's <visible> conditions are
+    plain case-sensitive String.Contains checks against a FIXED vocabulary:
+    DOLBY-VISION, HDR, 3D, AV1, HEVC, AVC, MPEG, WMV, AVI, MKV, DIVX, XVID,
+    BLURAY, M2TS, HDTV, WEB, DVDRIP, OPUS, ATMOS, DOLBY-TRUEHD,
+    DOLBYDIGITAL, DD, DD-EX, DTS-HD MA, DTS-X, DTS, AAC, MP3, FLAC,
+    MULTI-LANG, 2CH/6CH/7CH/8CH. None of this is CocoScrapers- or
+    AIOStreams-specific formatting - the icon row is simply dead for ANY
+    provider whose 'info' string doesn't literally contain these exact
+    tokens. Returns a list of matched tokens (order roughly matches the
+    skin's own icon layout) to fold into display_info so the same string
+    both reads well in Umbrella's detail-view text AND lights up the icon
+    row in its compact list view.
+
+    Works from raw_title alone (filename keywords like HEVC/BluRay/WEB are
+    common regardless of which metadata-parsing strategy is active) and,
+    when available, also from EmojiDescriptionParser's extracted `fields`
+    dict for tokens filenames don't reliably carry (Atmos, DTS-HD MA,
+    precise channel counts).
+    """
+    haystack = (raw_title or '').upper()
+    if fields:
+        extra = ' '.join(
+            ' '.join(v) if isinstance(v, list) else str(v)
+            for v in fields.values()
+        )
+        haystack = f"{haystack} {extra}".upper()
+
+    tags = []
+
+    # Video codec
+    if _contains_token(haystack, 'HEVC') or _contains_token(haystack, 'X265') or _contains_token(haystack, 'H265') or _contains_token(haystack, 'H.265'):
+        tags.append('HEVC')
+    elif _contains_token(haystack, 'AVC') or _contains_token(haystack, 'X264') or _contains_token(haystack, 'H264') or _contains_token(haystack, 'H.264'):
+        tags.append('AVC')
+    if _contains_token(haystack, 'AV1'):
+        tags.append('AV1')
+    if _contains_token(haystack, 'XVID'):
+        tags.append('XVID')
+    if _contains_token(haystack, 'DIVX'):
+        tags.append('DIVX')
+    if _contains_token(haystack, 'MPEG'):
+        tags.append('MPEG')
+    if _contains_token(haystack, 'WMV'):
+        tags.append('WMV')
+
+    # Container, from the filename extension specifically (not the whole
+    # haystack - "MKV"/"AVI" as bare words elsewhere would be a stretch,
+    # but the actual file extension is a reliable signal).
+    ext = raw_title.rsplit('.', 1)[-1].upper() if raw_title and '.' in raw_title else ''
+    if ext in ('MKV', 'AVI', 'M2TS'):
+        tags.append(ext)
+
+    # Source
+    if any(_contains_token(haystack, t) for t in ('BLURAY', 'BLU-RAY', 'BDRIP', 'BRRIP', 'REMUX')):
+        tags.append('BLURAY')
+    elif _contains_token(haystack, 'HDTV'):
+        tags.append('HDTV')
+    elif any(_contains_token(haystack, t) for t in ('WEB-DL', 'WEBRIP', 'WEB.DL', 'WEB')):
+        tags.append('WEB')
+    elif _contains_token(haystack, 'DVDRIP'):
+        tags.append('DVDRIP')
+
+    if _contains_token(haystack, '3D'):
+        tags.append('3D')
+
+    # HDR / Dolby Vision
+    if any(_contains_token(haystack, t) for t in ('DOLBY VISION', 'DOLBY.VISION', 'DV')):
+        tags.append('DOLBY-VISION')
+    if _contains_token(haystack, 'HDR') and not _contains_token(haystack, 'HDRIP'):
+        tags.append('HDR')
+
+    # Audio format
+    if _contains_token(haystack, 'ATMOS'):
+        tags.append('ATMOS')
+    if any(_contains_token(haystack, t) for t in ('TRUEHD', 'TRUE-HD', 'TRUE HD')):
+        tags.append('DOLBY-TRUEHD')
+    if any(_contains_token(haystack, t) for t in ('DTS-HD MA', 'DTS-HD.MA', 'DTSHD MA')):
+        tags.append('DTS-HD MA')
+    elif any(_contains_token(haystack, t) for t in ('DTS-X', 'DTSX')):
+        tags.append('DTS-X')
+    elif _contains_token(haystack, 'DTS'):
+        tags.append('DTS')
+    if any(_contains_token(haystack, t) for t in ('DD-EX', 'DDEX')):
+        tags.append('DD-EX')
+    elif any(_contains_token(haystack, t) for t in ('DD+', 'DDP', 'EAC3', 'E-AC3')):
+        tags.append('DOLBYDIGITAL')
+    elif any(_contains_token(haystack, t) for t in ('DD', 'AC3')):
+        tags.append('DD')
+    if _contains_token(haystack, 'AAC'):
+        tags.append('AAC')
+    if _contains_token(haystack, 'MP3'):
+        tags.append('MP3')
+    if _contains_token(haystack, 'FLAC'):
+        tags.append('FLAC')
+    if _contains_token(haystack, 'OPUS'):
+        tags.append('OPUS')
+
+    # Channels - highest match wins, since a release only has one layout
+    if _contains_token(haystack, '7.1'):
+        tags.append('8CH')
+    elif _contains_token(haystack, '5.1'):
+        tags.append('6CH')
+    elif any(_contains_token(haystack, t) for t in ('2.0', 'STEREO')):
+        tags.append('2CH')
+
+    # Languages
+    languages = (fields or {}).get('languages') or []
+    if len(languages) > 1 or _contains_token(haystack, 'MULTI'):
+        tags.append('MULTI-LANG')
+
+    return tags
+
+
 class MetadataParser:
     """parse() returns {'quality': str, 'display_info': str}. An empty
     display_info means "nothing extra beyond quality/size" - callers fall
@@ -79,7 +211,12 @@ class FilenameHeuristicParser(MetadataParser):
     def parse(self, stream, raw_title):
         quality = self._detect_quality(raw_title)
         self._debug(f"raw_title={raw_title!r} -> quality={quality!r}")
-        return {'quality': quality, 'display_info': ''}
+
+        icon_tags = build_umbrella_icon_tags(raw_title)
+        self._debug(f"umbrella icon tags from raw_title: {icon_tags!r}")
+        display_info = ' | '.join(icon_tags)
+
+        return {'quality': quality, 'display_info': display_info}
 
     @staticmethod
     def _detect_quality(title):
@@ -153,6 +290,19 @@ class EmojiDescriptionParser(MetadataParser):
             )
 
         display_info = self._build_display_info(fields)
+
+        icon_tags = build_umbrella_icon_tags(raw_title, fields)
+        self._debug(f"umbrella icon tags: {icon_tags!r}")
+        # Only append a tag if it isn't already a substring of the pretty
+        # text built above (e.g. 'HEVC' from the encode field) - avoids
+        # visibly repeating the same word twice in Umbrella's detail view
+        # while still guaranteeing every matched tag is present somewhere
+        # in the final string for the icon row's Contains checks.
+        display_info_upper = display_info.upper()
+        new_tags = [t for t in icon_tags if t not in display_info_upper]
+        if new_tags:
+            display_info = ' | '.join(filter(None, [display_info, ' | '.join(new_tags)]))
+
         self._debug(f"result: quality={quality!r} display_info={display_info!r}")
 
         return {'quality': quality, 'display_info': display_info}
