@@ -40,16 +40,31 @@ OWN_ADDON_ID = 'script.aiostreamscraper'
 COCOSCRAPERS_ADDON_ID = 'script.module.cocoscrapers'
 ADAPTER_RELATIVE_PATH = ('lib', 'aiostreams', 'adapters', 'cocoscrapers.py')
 
-# Deliberately not "aiostreams.py": if CocoScrapers' own maintainers ever add
-# native AIOStreams support, that's the name they would most likely use, and
-# we don't want to collide with (or silently shadow) their file.
-LINKED_MODULE_NAME = 'aiostreamsscraper_jordihs'
+# This name is not just cosmetic: CocoScrapers uses the module's filename
+# (module_name = filename minus .py) verbatim, uppercased, as the
+# user-visible identifier in two places outside our control - Umbrella's
+# "Remaining providers: ..." scrape-progress display and each result's
+# scraper-thread name - so whatever this is set to is what the user sees
+# during every search, not just in our own settings screen. Was
+# "aiostreamsscraper_jordihs" through beta6 (deliberately not "aiostreams.py",
+# to avoid colliding with whatever name CocoScrapers' own maintainers would
+# use if they ever added native AIOStreams support) - shortened to "aios" to
+# fix exactly that display, matching adapters/cocoscrapers.py's
+# _PROVIDER_NAME (a separate, unrelated identifier - see that file's comment
+# for why they must NOT be the same underlying constant even though they
+# now happen to share a value).
+LINKED_MODULE_NAME = 'aios'
 LINKED_FILENAME = f'{LINKED_MODULE_NAME}.py'
 LINKED_SETTING_ID = f'provider.{LINKED_MODULE_NAME}'
 
-# Filenames used by earlier beta versions, before the rename above - cleaned
-# up on every link so devices that ran an older beta don't keep a stale copy.
-LEGACY_FILENAMES = ['aiostreams.py']
+# Filenames AND provider.<name> setting ids used by earlier beta versions,
+# before the renames above - cleaned up on every link so devices that ran an
+# older beta don't keep a stale copy alongside the new one (a leftover file
+# would still get loaded and scraped by CocoScrapers under its old identity;
+# a leftover setting id would show as an orphaned, permanently-disabled-
+# looking toggle with no provider behind it).
+LEGACY_FILENAMES = ['aiostreams.py', 'aiostreamsscraper_jordihs.py']
+LEGACY_SETTING_IDS = ['provider.aiostreamsscraper_jordihs']
 
 SCRAPERS_RELATIVE_PATH = ('lib', 'cocoscrapers', 'sources_cocoscrapers', 'torrents')
 SETTINGS_XML_RELATIVE_PATH = ('resources', 'settings.xml')
@@ -154,6 +169,16 @@ def _declare_provider_setting(coco_addon_path):
     label = LINKED_LABEL_STRING_ID if label_ok else LINKED_LABEL_TEXT
     changed = label_changed
 
+    # Drop any setting entry left behind by an older beta's module name -
+    # its backing .py file is gone (removed via LEGACY_FILENAMES cleanup in
+    # link_to_cocoscrapers()), so left alone this would show as a permanent
+    # orphaned toggle for a provider that no longer exists.
+    for group in root.iter('group'):
+        for legacy_setting in list(group.findall('setting')):
+            if legacy_setting.get('id') in LEGACY_SETTING_IDS:
+                group.remove(legacy_setting)
+                changed = True
+
     existing = root.find(f".//setting[@id='{LINKED_SETTING_ID}']")
     if existing is not None:
         if existing.get('label') == label:
@@ -199,19 +224,37 @@ def _declare_provider_setting(coco_addon_path):
 
 def _reload_cocoscrapers_addon():
     """
-    Forces Kodi to drop and re-parse its cached copy of CocoScrapers'
-    settings.xml/strings.po, by disabling then re-enabling the addon via
-    JSON-RPC. Best-effort fix for an unconfirmed bug: our provider's toggle
-    has repeatedly shown up in CocoScrapers' settings screen with no visible
+    Best-effort fix for an unconfirmed bug: our provider's toggle has
+    repeatedly shown up in CocoScrapers' settings screen with no visible
     label (blank text next to the toggle) even though the underlying
     settings.xml/strings.po patch was independently confirmed correct on
     disk - never root-caused further than "Kodi is caching the parsed
     settings/strings somewhere a plain file edit doesn't invalidate".
-    SetAddonEnabled forces the same reload path a real Kodi restart would
-    trigger for this one addon, without restarting all of Kodi. Only called
-    when _declare_provider_setting actually changed something on disk, so
-    this doesn't run on every ordinary startup once things are stable.
+    Confirmed on a real device (beta6) that SetAddonEnabled(false)+(true)
+    ALONE did not fix it, so this now also fires Kodi's `UpdateLocalAddons`
+    builtin first - the actual documented mechanism for "an installed
+    addon's files changed on disk outside of Kodi's own install/update
+    flow, make Kodi notice without a restart", which SetAddonEnabled may
+    not trigger by itself (it might only flip a database flag rather than
+    re-scanning the addon's files). Kept the enable/disable toggle too as a
+    cheap second attempt. Only called when _declare_provider_setting
+    actually changed something on disk, so this doesn't run on every
+    ordinary startup once things are stable. If the label is STILL blank
+    after this, the bug is very likely not a caching/reload problem at all
+    (e.g. a real Kodi restart may be needed to prove the mechanism works
+    under any condition, or the numeric string id itself may be wrong for
+    some reason not yet identified) - see project memory before attempting
+    a third reload variant blind.
     """
+    try:
+        xbmc.executebuiltin('UpdateLocalAddons')
+    except Exception as exc:
+        xbmc.log(
+            f"[script.aiostreamscraper] _reload_cocoscrapers_addon: "
+            f"UpdateLocalAddons failed: {exc}",
+            xbmc.LOGWARNING,
+        )
+
     for enabled in (False, True):
         try:
             xbmc.executeJSONRPC(json.dumps({
