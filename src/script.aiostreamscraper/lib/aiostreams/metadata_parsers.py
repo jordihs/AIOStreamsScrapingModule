@@ -27,6 +27,10 @@ summary for Umbrella's source picker).
 """
 import re
 
+import xbmc
+
+LOG_PREFIX = '[script.aiostreamscraper]'
+
 # Broad emoji/pictograph/symbol Unicode ranges, plus variation selector and
 # ZWJ. Deliberately more generous than just the markers _EMOJI_FIELDS below
 # looks for: strip_emojis() is also used as a blanket safety net on every
@@ -60,13 +64,22 @@ class MetadataParser:
     display_info means "nothing extra beyond quality/size" - callers fall
     back to their own quality-and-size-only summary in that case."""
 
+    def __init__(self, debug_logging=False):
+        self.debug_logging = debug_logging
+
+    def _debug(self, msg):
+        if self.debug_logging:
+            xbmc.log(f"{LOG_PREFIX} metadata[{type(self).__name__}]: {msg}", xbmc.LOGINFO)
+
     def parse(self, stream, raw_title):
         raise NotImplementedError
 
 
 class FilenameHeuristicParser(MetadataParser):
     def parse(self, stream, raw_title):
-        return {'quality': self._detect_quality(raw_title), 'display_info': ''}
+        quality = self._detect_quality(raw_title)
+        self._debug(f"raw_title={raw_title!r} -> quality={quality!r}")
+        return {'quality': quality, 'display_info': ''}
 
     @staticmethod
     def _detect_quality(title):
@@ -113,14 +126,38 @@ _MARKER_TO_FIELD = {m: (name, kind) for m, name, kind in _EMOJI_FIELDS}
 class EmojiDescriptionParser(MetadataParser):
     def parse(self, stream, raw_title):
         text = stream.get('description') or stream.get('title') or ''
-        fields = self._extract(text)
+        self._debug(f"raw description/title text: {text!r}")
 
-        quality = fields.get('quality') or FilenameHeuristicParser._detect_quality(raw_title)
+        fields = self._extract(text)
+        self._debug(f"extracted fields: {fields!r}")
+
+        if self.debug_logging:
+            missing = [name for _, name, _ in _EMOJI_FIELDS if name not in fields]
+            if missing:
+                self._debug(f"markers NOT found for: {', '.join(missing)}")
+            if not fields:
+                self._debug(
+                    "matched ZERO emoji markers - either 'description'/'title' "
+                    "is empty for this stream, or this AIOStreams instance's "
+                    "template uses different emojis/shape than "
+                    "tmp/formatting_templates.txt (see this module's docstring)"
+                )
+
+        if fields.get('quality'):
+            quality = fields['quality']
+        else:
+            quality = FilenameHeuristicParser._detect_quality(raw_title)
+            self._debug(
+                f"no quality marker (\U0001F3A5) found, fell back to filename "
+                f"heuristic on raw_title={raw_title!r} -> quality={quality!r}"
+            )
+
         display_info = self._build_display_info(fields)
+        self._debug(f"result: quality={quality!r} display_info={display_info!r}")
+
         return {'quality': quality, 'display_info': display_info}
 
-    @staticmethod
-    def _extract(text):
+    def _extract(self, text):
         if not text:
             return {}
 
@@ -140,11 +177,13 @@ class EmojiDescriptionParser(MetadataParser):
             # line that has no marker on the following line).
             value = text[value_start:value_end].split('\n', 1)[0].strip()
             if not value:
+                self._debug(f"marker for {name!r} matched at {pos} but value was empty - skipped")
                 continue
             if kind == 'list':
                 fields[name] = [v.strip() for v in value.split('|') if v.strip()]
             else:
                 fields[name] = value
+            self._debug(f"marker for {name!r} matched at {pos}: raw value={value!r} -> {fields[name]!r}")
         return fields
 
     @staticmethod

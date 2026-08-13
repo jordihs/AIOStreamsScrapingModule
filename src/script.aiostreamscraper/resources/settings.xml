@@ -25,5 +25,11 @@
              lib/aiostreams/metadata_parsers.py. Off by default for that
              reason. -->
         <setting id="use_emoji_metadata" type="bool" label="Use Emoji-Based Metadata Parsing (Experimental)" default="false" />
+        <!-- Logs the entire metadata-parsing process line by line to
+             kodi.log (raw description text, every emoji marker match/miss,
+             final quality/info decision) - see lib/aiostreams/
+             metadata_parsers.py's _debug() calls. Off by default: verbose,
+             one block of log lines per stream per search. -->
+        <setting id="debug_logging" type="bool" label="Enable Verbose Debug Logging" default="false" />
     </category>
 </settings>

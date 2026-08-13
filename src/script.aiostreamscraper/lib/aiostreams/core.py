@@ -14,15 +14,17 @@ LOG_PREFIX = '[script.aiostreamscraper]'
 
 
 class AIOStreamsEngine:
-    def __init__(self, manifest_url, timeout=10, use_emoji_metadata=False):
+    def __init__(self, manifest_url, timeout=10, use_emoji_metadata=False, debug_logging=False):
         self.manifest_url = manifest_url.strip() if manifest_url else ""
         self.timeout = timeout
+        self.debug_logging = debug_logging
         self.base_url = (
             self.manifest_url[:-len(MANIFEST_SUFFIX)]
             if self.manifest_url.endswith(MANIFEST_SUFFIX)
             else self.manifest_url
         )
-        self._metadata_parser = EmojiDescriptionParser() if use_emoji_metadata else FilenameHeuristicParser()
+        parser_cls = EmojiDescriptionParser if use_emoji_metadata else FilenameHeuristicParser
+        self._metadata_parser = parser_cls(debug_logging=debug_logging)
 
     def get_streams(self, imdb_id, media_type="movie", season=None, episode=None):
         xbmc.log(
