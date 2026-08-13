@@ -305,6 +305,33 @@ def link_to_cocoscrapers():
         if changed:
             _reload_cocoscrapers_addon()
 
+        # Declaring the setting in CocoScrapers' SCHEMA (resources/settings.xml,
+        # above) only controls what its settings GUI displays and what default
+        # value Kodi would offer there - it does NOT, on its own, get written
+        # into the separate per-profile VALUES file CocoScrapers actually reads
+        # enablement from at runtime (special://profile/addon_data/
+        # script.module.cocoscrapers/settings.xml, parsed directly by
+        # control.py's make_settings_dict() - confirmed by reading that
+        # function: it builds its enabled-providers dict purely from whatever
+        # <setting> elements literally exist in that file, with no fallback to
+        # the schema's declared default for a key that's simply absent).
+        # Nothing else ever populates that file for a newly-added setting
+        # unless the user happens to open CocoScrapers' own settings screen -
+        # confirmed via live testing (beta8-10) that without this, our
+        # provider is silently never enabled and sources() is never called at
+        # all, no matter how many real searches run. Force it explicitly every
+        # time instead. This also fires CocoScrapers' own registered
+        # onSettingsChanged callback (its "Settings Monitor Service", visible
+        # in kodi.log), which should refresh its cached enabled-providers dict
+        # immediately - no separate reload needed for this specific value,
+        # unlike the still-unconfirmed settings-GUI label bug _reload_
+        # cocoscrapers_addon() targets. If Kodi hasn't picked up a
+        # brand-new setting id in its own addon-schema cache yet this session
+        # (same class of lag as that label bug), this call may silently no-op
+        # - harmless, since this whole function reruns every Kodi startup
+        # (while link_cocoscrapers_service stays on) and will retry.
+        xbmcaddon.Addon(COCOSCRAPERS_ADDON_ID).setSetting(LINKED_SETTING_ID, 'true')
+
     return result
 
 
