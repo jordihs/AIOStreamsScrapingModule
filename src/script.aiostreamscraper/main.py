@@ -17,27 +17,6 @@ from aiostreams.config import get_engine
 from aiostreams.cocoscrapers_link import link_to_cocoscrapers, disable_other_cocoscrapers_providers
 
 
-def sync_manifest_url_display():
-    current = addon.getSetting('manifest_url').strip()
-    addon.setSetting('manifest_url_display', current if current else 'Not set')
-
-
-def run_set_manifest_url():
-    current = addon.getSetting('manifest_url').strip()
-
-    new_value = xbmcgui.Dialog().input(
-        "Enter the full AIOStreams Manifest URL:",
-        defaultt=current
-    )
-
-    if not new_value:
-        return
-
-    new_value = new_value.strip()
-    addon.setSetting('manifest_url', new_value)
-    addon.setSetting('manifest_url_display', new_value if new_value else 'Not set')
-
-
 def run_test_search():
     engine = get_engine()
     dialog = xbmcgui.Dialog()
@@ -153,15 +132,36 @@ def run_cocoscrapers_only():
     )
 
 
+def run_main_menu():
+    # Redundant fallback for running the addon directly (e.g. from the addon
+    # browser) - every option here is also reachable from the settings
+    # dialog itself via type="action" settings with option="close", which
+    # closes (and flushes) the dialog before RunScript executes, so there's
+    # no risk of reading an unflushed edit to another field.
+    options = [
+        "Open Settings",
+        "Run Test Search",
+        "Link to CocoScrapers Now",
+        "Make AIOStreams the Only CocoScrapers Source",
+    ]
+    choice = xbmcgui.Dialog().select("AIOStreams Scraper", options)
+
+    if choice == 0:
+        addon.openSettings()
+    elif choice == 1:
+        run_test_search()
+    elif choice == 2:
+        run_link_cocoscrapers()
+    elif choice == 3:
+        run_cocoscrapers_only()
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
         run_test_search()
     elif len(sys.argv) > 1 and sys.argv[1] == 'link_cocoscrapers':
         run_link_cocoscrapers()
-    elif len(sys.argv) > 1 and sys.argv[1] == 'set_manifest_url':
-        run_set_manifest_url()
     elif len(sys.argv) > 1 and sys.argv[1] == 'cocoscrapers_only':
         run_cocoscrapers_only()
     else:
-        sync_manifest_url_display()
-        addon.openSettings()
+        run_main_menu()

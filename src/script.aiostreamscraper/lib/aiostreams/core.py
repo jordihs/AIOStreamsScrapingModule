@@ -1,4 +1,6 @@
 import json
+import time
+import traceback
 from urllib.parse import unquote, urlparse
 import urllib.request
 import urllib.error
@@ -6,6 +8,7 @@ import urllib.error
 import xbmc
 
 MANIFEST_SUFFIX = '/manifest.json'
+LOG_PREFIX = '[script.aiostreamscraper]'
 
 
 class AIOStreamsEngine:
@@ -19,13 +22,25 @@ class AIOStreamsEngine:
         )
 
     def get_streams(self, imdb_id, media_type="movie", season=None, episode=None):
+        xbmc.log(
+            f"{LOG_PREFIX} get_streams start imdb_id={imdb_id!r} media_type={media_type!r} "
+            f"season={season!r} episode={episode!r} base_url_set={bool(self.base_url)}",
+            xbmc.LOGINFO,
+        )
+
         if not self.base_url or not imdb_id:
+            xbmc.log(f"{LOG_PREFIX} get_streams aborting: no base_url or imdb_id", xbmc.LOGWARNING)
             return []
 
+        start = time.monotonic()
         try:
             data = self.fetch_raw(imdb_id, media_type=media_type, season=season, episode=episode)
         except Exception as exc:
-            xbmc.log(f"[script.aiostreamscraper] Failed to fetch streams: {exc}", xbmc.LOGERROR)
+            elapsed = time.monotonic() - start
+            xbmc.log(
+                f"{LOG_PREFIX} get_streams: fetch_raw failed after {elapsed:.2f}s: {exc!r}\n{traceback.format_exc()}",
+                xbmc.LOGERROR,
+            )
             return []
 
         raw_streams = data.get('streams', [])
@@ -35,14 +50,32 @@ class AIOStreamsEngine:
             if parsed:
                 parsed_streams.append(parsed)
 
+        elapsed = time.monotonic() - start
+        xbmc.log(
+            f"{LOG_PREFIX} get_streams done in {elapsed:.2f}s: "
+            f"{len(raw_streams)} raw -> {len(parsed_streams)} parsed",
+            xbmc.LOGINFO,
+        )
+
         return parsed_streams
 
     def fetch_raw(self, imdb_id, media_type="movie", season=None, episode=None):
         """Fetch and JSON-decode the raw AIOStreams response. Raises on network/HTTP errors."""
         endpoint = self._build_endpoint(imdb_id, media_type, season, episode)
+        host = urlparse(endpoint).hostname  # never log the full endpoint - AIOStreams manifest
+        # URLs commonly embed API keys/config in the path.
+        xbmc.log(f"{LOG_PREFIX} fetch_raw: GET host={host} timeout={self.timeout}s", xbmc.LOGINFO)
+
+        start = time.monotonic()
         req = urllib.request.Request(endpoint, headers={'User-Agent': 'Kodi/AIOStreamsScraper'})
         with urllib.request.urlopen(req, timeout=self.timeout) as response:
             body = response.read().decode('utf-8')
+            elapsed = time.monotonic() - start
+            xbmc.log(
+                f"{LOG_PREFIX} fetch_raw: response in {elapsed:.2f}s, status={response.status}, "
+                f"{len(body)} bytes",
+                xbmc.LOGINFO,
+            )
             return json.loads(body)
 
     def _build_endpoint(self, imdb_id, media_type, season, episode):
@@ -63,11 +96,10 @@ class AIOStreamsEngine:
             raw_title = stream.get('name', 'AIOStreams Release')
 
         is_direct = bool(stream.get('url'))
+        info_hash = stream.get('infoHash')
         url = stream.get('url')
-        if not url:
-            info_hash = stream.get('infoHash')
-            if info_hash:
-                url = f"magnet:?xt=urn:btih:{info_hash}"
+        if not url and info_hash:
+            url = f"magnet:?xt=urn:btih:{info_hash}"
 
         if not url:
             return None
@@ -76,8 +108,10 @@ class AIOStreamsEngine:
             'raw_title': raw_title,
             'quality': self._detect_quality(raw_title),
             'size_bytes': size_bytes,
+            'size_gb': size_gb,
             'size_formatted': f"{size_gb} GB" if size_gb else "N/A",
             'url': url,
+            'info_hash': info_hash,
             'is_direct': is_direct,
             'source_name': stream.get('name', 'AIOStreams')
         }
