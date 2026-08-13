@@ -17,5 +17,13 @@
         <setting id="link_cocoscrapers_service" type="bool" label="Automatically re-link on Kodi startup" default="true" />
         <setting id="link_cocoscrapers_action" type="action" label="Link to CocoScrapers Now" action="RunScript(script.aiostreamscraper,link_cocoscrapers)" />
         <setting id="cocoscrapers_only_action" type="action" label="Make AIOStreams the Only CocoScrapers Source" action="RunScript(script.aiostreamscraper,cocoscrapers_only)" />
+        <!-- Opt-in: parses AIOStreams' own emoji-tagged description text for
+             richer per-result info (encode, HDR/audio tags, seeders, ...)
+             instead of guessing quality from the filename. Only reliable if
+             this AIOStreams instance's Name/Description templates use the
+             same emoji markers this was built against - see
+             lib/aiostreams/metadata_parsers.py. Off by default for that
+             reason. -->
+        <setting id="use_emoji_metadata" type="bool" label="Use Emoji-Based Metadata Parsing (Experimental)" default="false" />
     </category>
 </settings>

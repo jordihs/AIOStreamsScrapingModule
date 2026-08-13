@@ -7,12 +7,14 @@ import urllib.error
 
 import xbmc
 
+from .metadata_parsers import FilenameHeuristicParser, EmojiDescriptionParser, strip_emojis
+
 MANIFEST_SUFFIX = '/manifest.json'
 LOG_PREFIX = '[script.aiostreamscraper]'
 
 
 class AIOStreamsEngine:
-    def __init__(self, manifest_url, timeout=10):
+    def __init__(self, manifest_url, timeout=10, use_emoji_metadata=False):
         self.manifest_url = manifest_url.strip() if manifest_url else ""
         self.timeout = timeout
         self.base_url = (
@@ -20,6 +22,7 @@ class AIOStreamsEngine:
             if self.manifest_url.endswith(MANIFEST_SUFFIX)
             else self.manifest_url
         )
+        self._metadata_parser = EmojiDescriptionParser() if use_emoji_metadata else FilenameHeuristicParser()
 
     def get_streams(self, imdb_id, media_type="movie", season=None, episode=None):
         xbmc.log(
@@ -104,26 +107,17 @@ class AIOStreamsEngine:
         if not url:
             return None
 
+        parsed_meta = self._metadata_parser.parse(stream, raw_title)
+
         return {
-            'raw_title': raw_title,
-            'quality': self._detect_quality(raw_title),
+            'raw_title': strip_emojis(raw_title),
+            'quality': strip_emojis(parsed_meta['quality']),
+            'display_info': strip_emojis(parsed_meta['display_info']),
             'size_bytes': size_bytes,
             'size_gb': size_gb,
             'size_formatted': f"{size_gb} GB" if size_gb else "N/A",
             'url': url,
             'info_hash': info_hash,
             'is_direct': is_direct,
-            'source_name': stream.get('name', 'AIOStreams')
+            'source_name': strip_emojis(stream.get('name', 'AIOStreams')),
         }
-
-    def _detect_quality(self, title):
-        title_upper = title.upper()
-        if any(q in title_upper for q in ['2160P', '4K', 'UHD']):
-            return '4K'
-        if '1080P' in title_upper:
-            return '1080p'
-        if '720P' in title_upper:
-            return '720p'
-        if any(q in title_upper for q in ['DVD', 'DVDRIP', 'XVID', 'SD', 'CAM']):
-            return 'SD'
-        return '1080p'

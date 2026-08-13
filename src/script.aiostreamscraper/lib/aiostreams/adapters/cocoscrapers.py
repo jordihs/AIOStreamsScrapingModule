@@ -175,6 +175,12 @@ class source:
             )
 
             for item in streams:
+                # display_info is only non-empty when the emoji-based metadata
+                # parser is enabled and actually found something in this
+                # stream's description - see metadata_parsers.py. Falls back
+                # to the plain quality/size summary otherwise (default
+                # behavior, and what any parser miss degrades to).
+                info = item['display_info'] or f"{item['quality']} | {item['size_formatted']}"
                 entry = {
                     'source': item['source_name'],
                     'provider': _PROVIDER_NAME,
@@ -182,7 +188,7 @@ class source:
                     'language': 'en',
                     'url': item['url'],
                     'name': item['raw_title'],
-                    'info': f"{item['quality']} | {item['size_formatted']}",
+                    'info': info,
                     'direct': item['is_direct'],
                     'debridonly': not item['is_direct'],
                     # Umbrella/CocoScrapers expect a raw numeric GB value here

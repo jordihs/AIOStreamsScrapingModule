@@ -14,14 +14,15 @@ def get_engine():
     manifest_url = get_manifest_url()
     timeout_val = addon.getSetting('timeout')
     timeout = int(timeout_val) if timeout_val else 10
+    use_emoji_metadata = addon.getSettingBool('use_emoji_metadata')
 
     # Never log the full manifest_url - AIOStreams manifest URLs commonly
     # embed API keys/config in the path.
     host = urlparse(manifest_url).hostname if manifest_url else None
     xbmc.log(
         f"[script.aiostreamscraper] get_engine: manifest_url_set={bool(manifest_url)} "
-        f"host={host} timeout={timeout}s",
+        f"host={host} timeout={timeout}s use_emoji_metadata={use_emoji_metadata}",
         xbmc.LOGINFO,
     )
 
-    return AIOStreamsEngine(manifest_url=manifest_url, timeout=timeout)
+    return AIOStreamsEngine(manifest_url=manifest_url, timeout=timeout, use_emoji_metadata=use_emoji_metadata)

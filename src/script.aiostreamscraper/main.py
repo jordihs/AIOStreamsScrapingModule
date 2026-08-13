@@ -67,6 +67,8 @@ def run_test_search():
                 f"Size: {first.get('size_formatted', 'N/A')}\n"
                 f"Source: {first.get('source_name', 'N/A')}"
             )
+            if first.get('display_info'):
+                msg += f"\nInfo: {first['display_info']}"
 
             if dialog.yesno("Test Search Success", msg, yeslabel="Play", nolabel="Close"):
                 play_stream(first, dialog)
