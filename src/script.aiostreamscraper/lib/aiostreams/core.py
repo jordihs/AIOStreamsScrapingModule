@@ -107,7 +107,21 @@ class AIOStreamsEngine:
         if not url:
             return None
 
-        parsed_meta = self._metadata_parser.parse(stream, raw_title)
+        try:
+            parsed_meta = self._metadata_parser.parse(stream, raw_title)
+        except Exception as exc:
+            # A single malformed stream (e.g. an unexpected type in a field
+            # the active parser reads) must not take down every other
+            # result in this batch - same failure shape as an unguarded
+            # per-item error already burned this project once, in
+            # Umbrella's own bare list comprehensions. Degrades exactly
+            # like a parser that ran cleanly but found nothing.
+            xbmc.log(
+                f"{LOG_PREFIX} normalize_stream: metadata parser failed for "
+                f"this stream, falling back to filename heuristic: {exc!r}",
+                xbmc.LOGWARNING,
+            )
+            parsed_meta = FilenameHeuristicParser().parse(stream, raw_title)
 
         return {
             'raw_title': strip_emojis(raw_title),
