@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <addons>
-    <addon id="script.aiostreamscraper" name="AIOStreams Scraper" version="0.1.0~beta9" provider-name="Jordihs">
+    <addon id="script.aiostreamscraper" name="AIOStreams Scraper" version="0.1.0~beta10" provider-name="Jordihs">
         <requires>
             <import addon="xbmc.python" version="3.0.0" />
         </requires>

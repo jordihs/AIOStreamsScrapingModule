@@ -96,7 +96,12 @@ class AIOStreamsEngine:
             raw_title = unquote(parsed_url.path.split('/')[-1])
 
         if not raw_title:
-            raw_title = stream.get('name', 'AIOStreams Release')
+            # `.get(key, default)` only falls back when the key is MISSING -
+            # if AIOStreams sends an explicit `"name": null` (e.g. its Name
+            # template rendered empty for this stream), .get() returns None
+            # here, not the default, and that None would otherwise flow
+            # straight into quality detection's `.upper()` call and crash.
+            raw_title = stream.get('name') or 'AIOStreams Release'
 
         is_direct = bool(stream.get('url'))
         info_hash = stream.get('infoHash')
@@ -133,5 +138,5 @@ class AIOStreamsEngine:
             'url': url,
             'info_hash': info_hash,
             'is_direct': is_direct,
-            'source_name': strip_emojis(stream.get('name', 'AIOStreams')),
+            'source_name': strip_emojis(stream.get('name') or 'AIOStreams'),
         }
