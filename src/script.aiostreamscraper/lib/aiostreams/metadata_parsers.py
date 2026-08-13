@@ -59,6 +59,35 @@ def strip_emojis(text):
     return re.sub(r'\s{2,}', ' ', _EMOJI_RE.sub('', text)).strip()
 
 
+_SIZE_RE = re.compile(r'([0-9]+(?:\.[0-9]+)?)\s*(TB|GB|MB)', re.IGNORECASE)
+
+
+def extract_size_gb(text):
+    """
+    Best-effort fallback for when AIOStreams' behaviorHints carries no
+    videoSize/folderSize at all: pulls the first "<number> <unit>" size
+    mention out of arbitrary text - typically the stream's own
+    description/title, which in practice (confirmed against real captured
+    AIOStreams responses) almost always includes a human-formatted size
+    even on streams where the structured byte count is missing. Returns a
+    float GB value, or None if nothing matched. Independent of which
+    metadata-parsing strategy is active - this isn't about interpreting
+    emoji markers, just finding a size-shaped substring anywhere in the
+    text, so it's safe to use unconditionally as a size-only fallback.
+    """
+    if not text:
+        return None
+    match = _SIZE_RE.search(text)
+    if not match:
+        return None
+    value, unit = float(match.group(1)), match.group(2).upper()
+    if unit == 'TB':
+        return round(value * 1024, 2)
+    if unit == 'MB':
+        return round(value / 1024, 2)
+    return round(value, 2)
+
+
 def _contains_token(haystack, token):
     """token found in haystack, bounded by non-alphanumerics (or string
     edges) on both sides - a plain `in` check would let 'DD' match inside

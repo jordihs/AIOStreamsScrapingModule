@@ -7,7 +7,7 @@ import urllib.error
 
 import xbmc
 
-from .metadata_parsers import FilenameHeuristicParser, EmojiDescriptionParser, strip_emojis
+from .metadata_parsers import FilenameHeuristicParser, EmojiDescriptionParser, strip_emojis, extract_size_gb
 
 MANIFEST_SUFFIX = '/manifest.json'
 LOG_PREFIX = '[script.aiostreamscraper]'
@@ -91,6 +91,28 @@ class AIOStreamsEngine:
         behavior = stream.get('behaviorHints', {})
         size_bytes = behavior.get('videoSize') or behavior.get('folderSize') or 0
         size_gb = round(size_bytes / (1024 ** 3), 2) if size_bytes else 0
+
+        if not size_gb:
+            # behaviorHints carries no structured byte count at all - fall
+            # back to whatever size AIOStreams mentioned in its own
+            # description/title text. Matters beyond just cosmetics: Umbrella
+            # reads a raw `i.get('size', 0)` for its optional min/max size
+            # filter (sourcesFilter()) - a stream we report as size=0 isn't
+            # just displayed as "N/A", it can be silently dropped entirely by
+            # a user's size-filter settings even though it's a perfectly
+            # valid, just-unreported-size result.
+            fallback_text = stream.get('description') or stream.get('title') or stream.get('name') or ''
+            fallback_gb = extract_size_gb(fallback_text)
+            if fallback_gb:
+                size_gb = fallback_gb
+                size_bytes = int(size_gb * 1024 ** 3)
+                if self.debug_logging:
+                    xbmc.log(
+                        f"{LOG_PREFIX} normalize_stream: no behaviorHints size, "
+                        f"fell back to size_gb={size_gb!r} parsed from "
+                        f"description/title text",
+                        xbmc.LOGINFO,
+                    )
 
         raw_title = behavior.get('filename')
         if not raw_title and stream.get('url'):

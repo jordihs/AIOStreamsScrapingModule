@@ -188,6 +188,27 @@ class source:
                     'language': 'en',
                     'url': item['url'],
                     'name': item['raw_title'],
+                    # Real CocoScrapers torrent providers (e.g. 1337x.py) set
+                    # this alongside 'name' - the raw, dotted/dashed release
+                    # text (unlike 'name', which is meant for display) used
+                    # by front-ends that re-derive quality/format info
+                    # themselves instead of trusting our own 'quality' field.
+                    # Confirmed both Umbrella AND Red Light (a CocoScrapers
+                    # front-end derived from the Fen Light lineage) fall back
+                    # to guessing from the raw `url` when this key is absent
+                    # - which is exactly why Red Light was tagging every one
+                    # of our results "SD": our `url` is a magnet URI or a
+                    # direct AIOStreams stream link, neither of which
+                    # contains resolution keywords the way a release filename
+                    # does. Lowercased to match both addons' own pattern
+                    # lists (e.g. Umbrella's getFileType() checks literal
+                    # lowercase substrings like '2160p.bluray.hevc.truehd').
+                    # For Umbrella this is a pure addition - confirmed its
+                    # own use of name_info only APPENDS extra format tags
+                    # to 'info' (source_utils.getFileType()), never touches
+                    # 'quality', so this can't regress anything already
+                    # working there.
+                    'name_info': item['raw_title'].lower(),
                     'info': info,
                     'direct': item['is_direct'],
                     'debridonly': not item['is_direct'],
